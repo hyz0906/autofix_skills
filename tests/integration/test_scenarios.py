@@ -15,7 +15,7 @@ from src.orchestrator.base import Orchestrator, Platform, BuildSystem
 from src.skill_registry.manager import DiagnosticObject
 from src.build_adapters.gn import GNAdapter
 from src.build_adapters.soong import SoongAdapter
-from src.skills.missing_header import MissingHeaderSkill
+from src.skills.symbol_header.missing_header import MissingHeaderSkill
 
 
 class TestGNIntegration:

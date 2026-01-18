@@ -8,9 +8,9 @@ actual AOSP and OpenHarmony build output.
 import pytest
 from src.cli import parse_error_log
 from src.skill_registry.manager import skill_manager
-from src.skills.missing_header import MissingHeaderSkill
-from src.skills.symbol_dep import SymbolDepSkill
-from src.skills.signature_mismatch import SignatureMismatchSkill
+from src.skills.symbol_header.missing_header import MissingHeaderSkill
+from src.skills.linkage_dependency.symbol_dep import SymbolDepSkill
+from src.skills.api_type.signature_mismatch import SignatureMismatchSkill
 
 
 # Sample complex build logs
@@ -169,7 +169,9 @@ class TestSkillRouting:
     def test_skill_manager_has_skills(self):
         """Test that skills are registered."""
         # Import to trigger registration
-        from src.skills import missing_header, symbol_dep, signature_mismatch
+        from src.skills.symbol_header import missing_header
+        from src.skills.linkage_dependency import symbol_dep
+        from src.skills.api_type import signature_mismatch
 
         all_skills = skill_manager.get_all_skills()
         assert len(all_skills) >= 3

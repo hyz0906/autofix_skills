@@ -1,163 +1,85 @@
 # AutoFix-Skill User Guide
 
-## Overview
+## Introduction
 
-AutoFix-Skill is an automated build error repair system for AOSP and OpenHarmony projects. It analyzes build error logs, identifies the root cause, and applies fixes to your build configuration files.
+AutoFix-Skill is an intelligent build repair system. It is designed to run in CI/CD pipelines or on a developer's local machine to automatically resolve common compilation and linking errors.
 
 ## Installation
 
-### Prerequisites
+1. Clone the repository.
+2. Ensure Python 3.10+ is installed.
+3. Install dependencies (if any listed in `pyproject.toml` or `requirements.txt`).
 
-- Python 3.10+
-- `ast-grep` (optional, for enhanced code search)
-- `gn` (optional, for BUILD.gn formatting)
+## Command Line Interface
 
-### Setup
+The main entry point is `src/cli.py`.
 
-```bash
-# Clone or navigate to the project
-cd autofix_skill
+### `fix` Command
 
-# Run with PYTHONPATH
-PYTHONPATH=. python3 -m src.cli --help
-```
+Analyzes an error source and applies fixes.
 
-## Quick Start
+**Arguments:**
+- `--log <file>`: Path to a build log file containing errors.
+- `--error "<string>"`: A single error string to analyze directly.
+- `--root <dir>`: The root directory of the source code (optional, defaults to current dir).
+- `--dry-run`: Preview changes without modifying files.
+- `--json`: Output results in JSON format.
+- `--ci`: CI mode (non-interactive, optimizes for pipeline output).
 
-### Fixing Build Errors
-
-**From a log file:**
-```bash
-PYTHONPATH=. python3 -m src.cli fix --log build_errors.log
-```
-
-**From a single error message:**
-```bash
-PYTHONPATH=. python3 -m src.cli fix --error "fatal error: 'missing_header.h' file not found"
-```
-
-**Dry run (preview changes):**
-```bash
-PYTHONPATH=. python3 -m src.cli fix --log build.log --dry-run
-```
-
-**JSON output:**
-```bash
-PYTHONPATH=. python3 -m src.cli fix --log build.log --json
-```
-
-### Scanning Available Skills
+**Examples:**
 
 ```bash
-PYTHONPATH=. python3 -m src.cli scan
+# Fix from log
+python3 -m src.cli fix --log build.log
+
+# Dry run with specific root
+python3 -m src.cli fix --log out/error.log --root ~/android/master --dry-run
 ```
 
-This shows all registered skills and their capabilities.
+### `scan` Command
 
-### CI Mode
-
-For non-interactive CI/CD environments:
-```bash
-PYTHONPATH=. python3 -m src.cli fix --log build.log --ci --json
-```
-
-Exit codes:
-- `0`: All errors fixed successfully
-- `1`: Some errors could not be fixed
-
-## Supported Error Types
-
-### 1. Missing Header Errors
-**Skill:** `MissingHeaderSkill`
-
-Detects errors like:
-- `fatal error: 'foo.h' file not found`
-- `cannot find include file: 'bar.h'`
-
-**Fix:** Searches for the header file in the source tree and adds the appropriate include path to the build configuration.
-
-### 2. Undefined Reference Errors
-**Skill:** `SymbolDepSkill`
-
-Detects errors like:
-- `undefined reference to 'MyFunction'`
-- `error: undefined symbol: SomeClass::method`
-- `error LNK2019: unresolved external symbol`
-
-**Fix:** Finds the library providing the symbol and adds it as a dependency.
-
-### 3. Function Signature Mismatches
-**Skill:** `SignatureMismatchSkill`
-
-Detects errors like:
-- `no matching function for call to 'foo(int, int)'`
-- `too many arguments to function 'bar'`
-- `cannot convert 'X' to 'Y'`
-
-**Analysis:** Provides detailed analysis and suggestions (automatic fix not always possible).
-
-## Supported Build Systems
-
-### GN (BUILD.gn)
-Used by OpenHarmony and Chromium-based projects.
-
-**Capabilities:**
-- Add dependencies (`deps`)
-- Add include paths (`include_dirs`)
-- Modify compiler flags (`cflags`)
-
-### Soong (Android.bp)
-Used by AOSP (Android Open Source Project).
-
-**Capabilities:**
-- Add shared/static/header library dependencies
-- Add include directories
-- Modify compiler flags
-
-## Configuration
-
-### Environment Detection
-
-AutoFix-Skill automatically detects the build environment:
-
-| Marker File | Environment | Build System |
-|-------------|-------------|--------------|
-| `out/ohos_config.json` | OpenHarmony | GN |
-| `build/envsetup.sh` | AOSP | Soong |
-
-### Specifying Root Directory
+Lists all available skills and the error patterns they detect.
 
 ```bash
-PYTHONPATH=. python3 -m src.cli fix --root /path/to/source --log build.log
+python3 -m src.cli scan
 ```
 
-## Troubleshooting
+## Supported Error Categories
 
-### "No skills matched the error"
+### 1. Symbol & Header (`src/skills/symbol_header/`)
+These skills handle missing declarations and definitions at the source level.
+- **MissingHeaderSkill**: Detects `fatal error: 'foo.h' file not found`. Adds `#include`.
+- **UndeclaredIdentifierSkill**: Detects `use of undeclared identifier`. Adds imports/includes or namespace qualifiers.
+- **NamespaceSkill**: Detects `not a member of 'std'`. Adds `std::` prefix.
+- **JavaImportSkill**: Detects `cannot find symbol` (Java). Adds `import pkg.Class;`.
 
-This means no registered skill recognized the error pattern. Check:
-1. The error message format matches supported patterns
-2. Run `scan` to see available skills
+### 2. Linkage & Dependency (`src/skills/linkage_dependency/`)
+These skills handle linker errors and module dependencies.
+- **SymbolDepSkill**: Detects `undefined reference`. Finds the defining library and adds it to `shared_libs` (Android.bp) or `deps` (GN).
+- **RustDepSkill**: Detects missing Crates. Adds to `rustlibs`.
+- **VisibilitySkill**: Detects visibility violations. Modifies `visibility` lists.
+- **MultipleDefSkill**: Detects `multiple definition`. Removes duplicate sources.
 
-### "Could not find header file"
+### 3. API & Type Safety (`src/skills/api_type/`)
+These skills handle semantic code errors.
+- **SignatureMismatchSkill**: Detects `no matching function`. Suggests argument fixes.
+- **TypeConversionSkill**: Detects invalid conversions. Suggests casts (`static_cast`, etc.).
+- **DeprecatedAPISkill**: Detects deprecated warnings. Suggests replacements.
 
-The skill searched but couldn't locate the header. Check:
-1. The header file exists in the source tree
-2. The search path is correct
+### 4. Build Configuration (`src/skills/build_config/`)
+These skills maintain the build system health.
+- **BlueprintSyntaxSkill**: Fixes syntax errors in `Android.bp`.
+- **GNScopeSkill**: Fixes scope issues in `BUILD.gn`.
+- **FlagCleanerSkill**: Removes unsupported or unknown compiler flags.
+- **PermissionSkill**: Fixes `Permission denied` on build scripts.
 
-### "gn format failed"
+## Advanced Usage
 
-The GN binary is not in PATH or failed. The file was still modified, but may need manual formatting.
+### CI/CD Integration
 
-## Development
+AutoFix-Skill can be used in Jenkins or GitLab CI.
+See `ci/jenkins_pipeline.groovy` and `ci/gitlab_ci.yml` for examples.
 
-### Adding New Skills
+### Customizing Headers
 
-See [API.md](API.md) for the skill development guide.
-
-### Running Tests
-
-```bash
-cd autofix_skill
-PYTHONPATH=. python3 -m pytest tests/ -v
-```
+You can customize the mapping of symbols to headers in `src/skills/symbol_header/undeclared_identifier.py` (via `STD_HEADER_MAP` or external configuration).

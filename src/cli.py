@@ -19,7 +19,7 @@ from src.skill_registry.manager import DiagnosticObject, skill_manager
 from src.utils.logger import get_logger, Colors
 
 # Import skills to register them
-from src.skills import missing_header  # noqa: F401
+from src.skills.symbol_header import missing_header  # noqa: F401
 
 logger = get_logger('autofix')
 
