@@ -83,3 +83,35 @@ See `ci/jenkins_pipeline.groovy` and `ci/gitlab_ci.yml` for examples.
 ### Customizing Headers
 
 You can customize the mapping of symbols to headers in `src/skills/symbol_header/undeclared_identifier.py` (via `STD_HEADER_MAP` or external configuration).
+
+## Integration with Claude Code
+
+You can register this project as a skill in Claude Code to enable the AI assistant to automatically fix build errors during your chat sessions.
+
+### Installation
+
+1.  **Locate Skills Directory**: Find your Claude Code skills directory (typically `~/.claude/skills` or check documentation).
+2.  **Create Directory**: Create a folder for the skill.
+    ```bash
+    mkdir -p ~/.claude/skills/autofix-skill
+    ```
+3.  **Install Definition**: Copy the `SKILL.md` file.
+    ```bash
+    cp (path/to/autofix-skill)/SKILL.md ~/.claude/skills/autofix-skill/SKILL.md
+    ```
+4.  **Link Source Code**: Symlink the toolkit so Claude can execute the scripts.
+    ```bash
+    # Assuming you are in the autofix-skill repository root
+    ln -s $(pwd) ~/.claude/skills/autofix-skill/autofix_skill
+    ```
+
+### Using in Chat
+
+Once installed, you can ask Claude to fix errors naturally.
+
+**Examples:**
+> "I'm getting a missing header error in my build. Can you fix it?"
+> "Run the autofix skill on the latest build log."
+> "Scan the build log 'out/error.log' and repair any linkage issues."
+
+Claude will use the instruction in `SKILL.md` to map your requests to the `src.cli` commands.
