@@ -1,0 +1,92 @@
+# AutoFix-Skill GitLab CI Configuration
+#
+# This pipeline runs on merge requests and main branch pushes.
+# It tests the autofix-skill system and can be extended to
+# automatically fix build errors in CI.
+
+stages:
+  - test
+  - lint
+  - integration
+  - deploy
+
+variables:
+  PYTHONPATH: "."
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
+
+cache:
+  paths:
+    - .cache/pip
+    - .pytest_cache
+
+# Base job template
+.python_base:
+  image: python:3.10-slim
+  before_script:
+    - pip install --upgrade pip
+    - pip install pytest pytest-cov
+
+# Unit Tests
+unit_tests:
+  extends: .python_base
+  stage: test
+  script:
+    - cd autofix_skill
+    - PYTHONPATH=. python -m pytest tests/test_basic.py tests/test_symbol_dep.py tests/test_parser.py -v --junitxml=report.xml
+  artifacts:
+    when: always
+    reports:
+      junit: autofix_skill/report.xml
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# Integration Tests
+integration_tests:
+  extends: .python_base
+  stage: integration
+  script:
+    - cd autofix_skill
+    - PYTHONPATH=. python -m pytest tests/integration/ -v --junitxml=integration_report.xml
+  artifacts:
+    when: always
+    reports:
+      junit: autofix_skill/integration_report.xml
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# Lint check (optional)
+lint:
+  extends: .python_base
+  stage: lint
+  script:
+    - pip install flake8
+    - cd autofix_skill
+    - flake8 src/ --max-line-length=100 --ignore=E501,W503
+  allow_failure: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+# AutoFix Job - Example of using autofix-skill in CI
+autofix_on_failure:
+  extends: .python_base
+  stage: deploy
+  script:
+    - cd autofix_skill
+    - |
+      if [ -f "$BUILD_LOG_FILE" ]; then
+        echo "Attempting to fix build errors..."
+        PYTHONPATH=. python -m src.cli fix --log "$BUILD_LOG_FILE" --ci --json > fix_result.json || true
+        cat fix_result.json
+      else
+        echo "No build log file specified. Skipping autofix."
+      fi
+  artifacts:
+    when: always
+    paths:
+      - autofix_skill/fix_result.json
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: manual
+  allow_failure: true
